@@ -1,0 +1,86 @@
+# Instalamos las librerías necesarias
+!pip install -U -q google-generativeai notion-client requests
+
+import os
+import requests
+import google.generativeai as genai
+from notion_client import Client
+from google.colab import userdata
+
+# 1. Recuperar claves de la sección "Secrets" (icono de llave 🔑)
+NEWS_API_KEY = userdata.get('NEWS_API_KEY')
+GEMINI_API_KEY = userdata.get('GEMINI_API_KEY')
+NOTION_TOKEN = userdata.get('NOTION_TOKEN')
+NOTION_DATABASE_ID = "333db7e5c493802cae56cd916075622e"
+
+# 3. Inicializar Clientes
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-flash-latest')
+notion = Client(auth=NOTION_TOKEN)
+
+print("Configuración completada con éxito.")
+
+def fetch_tech_news(topic="tecnología"):
+    """Paso 1: Extraer noticias de NewsAPI"""
+    url = f"https://newsapi.org/v2/everything?q={topic}&language=es&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
+    response = requests.get(url).json()
+    return response.get('articles', [])
+
+def generate_ai_summary(title, description):
+    """Paso 2: Transformar con IA (Gemini)"""
+    prompt = f"""
+    Eres un analista de datos. Resume la siguiente noticia en máximo 2 frases breves.
+    Enfócate en hechos y datos.
+    Título: {title}
+    Contenido: {description}
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except:
+        return "Resumen no disponible por error en la IA."
+
+def upload_to_notion(title, summary, url):
+    """Paso 3: Cargar en Notion"""
+    notion.pages.create(
+        parent={"database_id": NOTION_DATABASE_ID},
+        properties={
+            "Título": {"title": [{"text": {"content": title[:100]}}]},
+            "Resumen": {"rich_text": [{"text": {"content": summary}}]},
+            "Categoría": {"select": {"name": "Tecnología"}},
+            "Enlace": {"url": url}
+        }
+    )
+
+def ejecutar_proyecto():
+    print("Buscando noticias de hoy...")
+    noticias = fetch_tech_news()
+
+    if not noticias:
+        print("No se encontraron noticias. Revisa tu API Key de NewsAPI.")
+        return
+
+    print(f"Procesando {len(noticias)} noticias...")
+
+    for i, noticia in enumerate(noticias, 1):
+        titulo = noticia['title']
+        # Usamos la descripción o el contenido, lo que esté disponible
+        contenido = noticia.get('description') or noticia.get('content') or "Sin contenido disponible"
+        link = noticia['url']
+
+        print(f"[{i}/5] Resumiendo: {titulo[:50]}...")
+
+        # Generar el resumen
+        resumen = generate_ai_summary(titulo, contenido)
+
+        # Enviar a Notion
+        try:
+            upload_to_notion(titulo, resumen, link)
+            print(f"Guardado en Notion.")
+        except Exception as e:
+            print(f"Error al guardar en Notion: {e}")
+
+    print("\n Ve a tu página de Notion para ver los resultados.")
+
+# Llamamos a la función
+ejecutar_proyecto()
