@@ -10,5 +10,3 @@ Pipeline de automatización que extrae noticias tecnológicas, las resume median
 1. **Extracción:** Conexión con NewsAPI para obtener titulares de innovación.
 2. **Procesamiento:** Uso de Ingeniería de Prompts con IA para generar resúmenes de 2 líneas.
 3. **Carga (ETL):** Inserción automatizada en Notion mediante su API oficial.
-
-##  Ejemplo de Visualización
